@@ -1,1 +1,1 @@
-Just for fun
+A TicTacToe bot with the classic minimax + alpha-beta pruning

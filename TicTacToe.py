@@ -8,6 +8,11 @@ class Application(Frame):
 
   def __init__(self, master=None):
       Frame.__init__(self, master)
+      self.maxPlayerToMove = True
+      # Note: you cannot do: self.gridClicked = [[0] * 3]*3
+      # for more reason, refer to: https://stackoverflow.com/questions/21036140/python-two-dimensional-array-changing-an-element
+      self.gridClicked = [[0] * 3 for _ in range(3)]
+      self.gridClickedCount = 0
 
       #self.config = configparser.ConfigParser()
       #self.config.read('config.ini')
@@ -27,22 +32,7 @@ class Application(Frame):
     #circle = PhotoImage(file = "circle.gif")    
     #image = canvas1.create_image(0, 0, anchor='n', image=circle)
     
-    coordinates = 0, 3, 302, 3
-    self.canvas1.create_line(coordinates, fill="black")
-    coordinates = 0, 100, 302, 100
-    self.canvas1.create_line(coordinates, fill="black")
-    coordinates = 0, 200, 302, 200
-    self.canvas1.create_line(coordinates, fill="black")
-    coordinates = 0, 302, 302, 302
-    self.canvas1.create_line(coordinates, fill="black")
-    coordinates = 3, 0, 3, 302
-    self.canvas1.create_line(coordinates, fill="black")
-    coordinates = 100, 0, 100, 302
-    self.canvas1.create_line(coordinates, fill="black")
-    coordinates = 200, 0, 200, 302
-    self.canvas1.create_line(coordinates, fill="black")
-    coordinates = 302, 0, 302, 302
-    self.canvas1.create_line(coordinates, fill="black")
+    self.drawBoard()
 
     self.canvas1.bind("<Button-1>", self.canvasClicked)
     self.canvas1.pack(expand = True, fill = BOTH)
@@ -72,28 +62,102 @@ class Application(Frame):
     self.nodeSearchedEntry.insert(0, "123456")
     self.nodeSearchedEntry.configure(state=DISABLED)
 
-  def drawCross(self, x, y):
-    x0 = (int)(x / 100) * 100
-    y0 = (int)(y / 100) * 100
+  def drawBoard(self):
+    coordinates = 0, 3, 302, 3
+    self.canvas1.create_line(coordinates, fill="black")
+    coordinates = 0, 100, 302, 100
+    self.canvas1.create_line(coordinates, fill="black")
+    coordinates = 0, 200, 302, 200
+    self.canvas1.create_line(coordinates, fill="black")
+    coordinates = 0, 302, 302, 302
+    self.canvas1.create_line(coordinates, fill="black")
+    coordinates = 3, 0, 3, 302
+    self.canvas1.create_line(coordinates, fill="black")
+    coordinates = 100, 0, 100, 302
+    self.canvas1.create_line(coordinates, fill="black")
+    coordinates = 200, 0, 200, 302
+    self.canvas1.create_line(coordinates, fill="black")
+    coordinates = 302, 0, 302, 302
+    self.canvas1.create_line(coordinates, fill="black")
+
+  def drawCross(self, x0, y0):
     coordinates = x0, y0, x0 + 100, y0 + 100
     self.canvas1.create_line(coordinates, fill="blue")
     coordinates = x0, y0+100, x0+100, y0
     self.canvas1.create_line(coordinates, fill="blue")
 
-    #coordinates = 100, 0, 200, 100
-    #self.canvas1.create_line(coordinates, fill="blue")
-    #coordinates = 200, 0, 100, 100
-    #self.canvas1.create_line(coordinates, fill="blue")
+  def drawCircle(self, x0, y0):
+    coordinates = x0, y0, x0+100, y0+100
+    self.canvas1.create_oval(coordinates, outline="red")
 
-    #coordinates = 200, 200, 300, 300
-    #self.canvas1.create_oval(coordinates, outline="red")
-  
   def canvasClicked(self, event):
     #messagebox.showinfo("Coord", "Clicked at: %d, %d" % (event.x, event.y))
-    self.drawCross(event.x, event.y)
+    if self.isEndState():
+      return
+
+    #print(event.x, event.y)
+    x0 = (int)(event.x / 100)
+    y0 = (int)(event.y / 100)
+    if self.gridClicked[x0][y0] != 0:
+      return
+    self.gridClicked[x0][y0] = 1 if self.maxPlayerToMove else -1
+    self.gridClickedCount += 1
+    #print(self.gridClicked)
+
+    x0, y0 = x0*100, y0*100
+
+    if self.maxPlayerToMove:
+      self.drawCross(x0, y0)
+    else:
+      self.drawCircle(x0, y0)
+    self.maxPlayerToMove = not self.maxPlayerToMove
+
+    self.isEndState()
+
+  def isEndState(self):
+    rowSum = [ sum(x) for x in self.gridClicked ]
+    colSum = [ sum(x) for x in zip(*self.gridClicked) ]
+    for s in rowSum:
+      if s == 3:
+        messagebox.showinfo("Winner!", "Max player has won!")
+        return True
+      elif s == -3:
+        messagebox.showinfo("Winner!", "Min player has won!")
+        return True
+    for s in colSum:
+      if s == 3:
+        messagebox.showinfo("Winner!", "Max player has won!")
+        return True
+      elif s == -3:
+        messagebox.showinfo("Winner!", "Min player has won!")
+        return True
+    s = sum(self.gridClicked[i][i] for i in range(3))
+    if s == 3:
+      messagebox.showinfo("Winner!", "Max player has won!")
+      return True
+    elif s == -3:
+      messagebox.showinfo("Winner!", "Min player has won!")
+      return True
+    s = sum(self.gridClicked[i][3-i-1] for i in range(3))
+    if s == 3:
+      messagebox.showinfo("Winner!", "Max player has won!")
+      return True
+    elif s == -3:
+      messagebox.showinfo("Winner!", "Min player has won!")
+      return True
+    if self.gridClickedCount == 9:
+      messagebox.showinfo("Tie Game", "We tied!")
+      return True
+      
+    return False
 
   def start(self):
-    messagebox.showinfo('Hint', '%s moves first' % (str(self.firstMoveVar.get())))
-  
+    #messagebox.showinfo('Hint', '%s moves first' % (str(self.firstMoveVar.get())))
+    self.gridClicked = [[0] * 3 for _ in range(3)]
+    self.gridClickedCount = 0
+    self.maxPlayerToMove = True
+    self.canvas1.delete("all")
+    self.drawBoard()
+
 app = Application()
 app.mainloop()

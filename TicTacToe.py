@@ -1,6 +1,8 @@
 from tkinter import *
 #import configparser
 #from PIL import Image, ImageTk
+import math
+from random import *
 import threading
 import tkinter.messagebox as messagebox
 
@@ -8,11 +10,7 @@ class Application(Frame):
 
   def __init__(self, master=None):
       Frame.__init__(self, master)
-      self.maxPlayerToMove = True
-      # Note: you cannot do: self.gridClicked = [[0] * 3]*3
-      # for more reason, refer to: https://stackoverflow.com/questions/21036140/python-two-dimensional-array-changing-an-element
-      self.gridClicked = [[0] * 3 for _ in range(3)]
-      self.gridClickedCount = 0
+      self.gameInProgress = False
 
       #self.config = configparser.ConfigParser()
       #self.config.read('config.ini')
@@ -31,12 +29,10 @@ class Application(Frame):
     self.canvas1 = Canvas(firstFrame, bg='grey', width=300, height=300)
     #circle = PhotoImage(file = "circle.gif")    
     #image = canvas1.create_image(0, 0, anchor='n', image=circle)
-    
-    self.drawBoard()
-
     self.canvas1.bind("<Button-1>", self.canvasClicked)
     self.canvas1.pack(expand = True, fill = BOTH)
-
+    self.drawBoard()
+    
     secondFrame = Frame(self)
     secondFrame.pack(fill=X, expand=True)
 
@@ -92,7 +88,7 @@ class Application(Frame):
 
   def canvasClicked(self, event):
     #messagebox.showinfo("Coord", "Clicked at: %d, %d" % (event.x, event.y))
-    if self.isEndState():
+    if not self.gameInProgress:
       return
 
     #print(event.x, event.y)
@@ -110,54 +106,128 @@ class Application(Frame):
       self.drawCross(x0, y0)
     else:
       self.drawCircle(x0, y0)
-    self.maxPlayerToMove = not self.maxPlayerToMove
 
-    self.isEndState()
+    self.maxPlayerToMove = not self.maxPlayerToMove
+    self.humanPlayerToMove = False
+    finalScore = self.isEndState()
+    self.gameInProgress = True if finalScore == -1 else False
+    if not self.gameInProgress:
+      self.displayFinalMessage(finalScore)
+      return
+    self.nextAIMove()
+
+  def displayFinalMessage(self, finalScore):
+    maxPlayer = "Human" if self.firstMoveVar.get() == 1 else "AI"
+    minPlayer = "AI" if self.firstMoveVar.get() == 1 else "Human"
+    if finalScore == 3:
+      messagebox.showinfo("Winner!", "%s player has won!" % maxPlayer)
+    elif finalScore == -3:
+      messagebox.showinfo("Winner!", "%s player has won!" % minPlayer)
+    else:
+      messagebox.showinfo("Tie Game", "We tied!")
 
   def isEndState(self):
     rowSum = [ sum(x) for x in self.gridClicked ]
     colSum = [ sum(x) for x in zip(*self.gridClicked) ]
     for s in rowSum:
-      if s == 3:
-        messagebox.showinfo("Winner!", "Max player has won!")
-        return True
-      elif s == -3:
-        messagebox.showinfo("Winner!", "Min player has won!")
-        return True
+      if s == 3 or s == -3:
+        return s
     for s in colSum:
-      if s == 3:
-        messagebox.showinfo("Winner!", "Max player has won!")
-        return True
-      elif s == -3:
-        messagebox.showinfo("Winner!", "Min player has won!")
-        return True
+      if s == 3 or s == -3:
+        return s
     s = sum(self.gridClicked[i][i] for i in range(3))
-    if s == 3:
-      messagebox.showinfo("Winner!", "Max player has won!")
-      return True
-    elif s == -3:
-      messagebox.showinfo("Winner!", "Min player has won!")
-      return True
+    if s == 3 or s == -3:
+      return s
     s = sum(self.gridClicked[i][3-i-1] for i in range(3))
-    if s == 3:
-      messagebox.showinfo("Winner!", "Max player has won!")
-      return True
-    elif s == -3:
-      messagebox.showinfo("Winner!", "Min player has won!")
-      return True
+    if s == 3 or s == -3:
+      return s
     if self.gridClickedCount == 9:
-      messagebox.showinfo("Tie Game", "We tied!")
-      return True
-      
-    return False
+      return 0
+    return -1 # return -1 to indicate a non-terminal state
 
   def start(self):
     #messagebox.showinfo('Hint', '%s moves first' % (str(self.firstMoveVar.get())))
+    # Note: you cannot do: self.gridClicked = [[0] * 3]*3
+    # for more reason, refer to: https://stackoverflow.com/questions/21036140/python-two-dimensional-array-changing-an-element
     self.gridClicked = [[0] * 3 for _ in range(3)]
-    self.gridClickedCount = 0
+    self.gridClickedCount = 0    
     self.maxPlayerToMove = True
+    self.humanPlayerToMove = True if self.firstMoveVar.get() == 1 else False
     self.canvas1.delete("all")
     self.drawBoard()
+    self.gameInProgress = True
+    if not self.humanPlayerToMove:
+      self.nextAIMove()
+  
+  def nextAIMove(self):
+    # x0 = randint(0, 2)
+    # y0 = randint(0, 2)
+    # while self.gridClicked[x0][y0] != 0:
+    #   x0 = randint(0, 2)
+    #   y0 = randint(0, 2)
+    #bestScore = -math.inf if self.maxPlayerToMove else math.inf
+    x0, y0 = -1, -1
+    if self.maxPlayerToMove:
+      nextMove = self.findMaxMove(0)
+    else:
+      nextMove = self.findMinMove(0)
+    x0 = nextMove[1]
+    y0 = nextMove[2]
+    self.gridClicked[x0][y0] = 1 if self.maxPlayerToMove else -1
+    self.gridClickedCount += 1
+    
+    x0, y0 = x0*100, y0*100
+    if self.maxPlayerToMove:
+      self.drawCross(x0, y0)
+    else:
+      self.drawCircle(x0, y0)
+    self.maxPlayerToMove = not self.maxPlayerToMove
+    self.humanPlayerToMove = True
+    finalScore = self.isEndState()
+    self.gameInProgress = True if finalScore == -1 else False
+    if not self.gameInProgress:
+      self.displayFinalMessage(finalScore)
+
+  def findMaxMove(self, depth):
+    score = self.isEndState()
+    if score != -1: # -1 indicating it's a non-terminal state
+      return [score, -1, -1]
+  
+  
+    maxScore = -math.inf
+    x0, y0 = -1, -1
+    for i in range(3):
+      for j in range(3):
+        if (self.gridClicked[i][j]) == 0:
+          self.gridClicked[i][j] = 1
+          self.gridClickedCount += 1
+          nextMove = self.findMinMove(depth+1)
+          if (nextMove[0] > maxScore):
+            maxScore = nextMove[0]
+            x0, y0 = i, j
+          self.gridClicked[i][j] = 0
+          self.gridClickedCount -= 1
+    return [maxScore, x0, y0]
+
+  def findMinMove(self, depth):
+    score = self.isEndState()
+    if score != -1: # -1 indicating it's a non-terminal state
+      return [score, -1, -1]
+    
+    minScore = math.inf
+    x0, y0 = -1, -1
+    for i in range(3):
+      for j in range(3):
+        if (self.gridClicked[i][j] == 0):
+          self.gridClicked[i][j] = -1
+          self.gridClickedCount += 1
+          nextMove  = self.findMaxMove(depth+1)
+          if (nextMove[0] < minScore):
+            minScore = nextMove[0]
+            x0, y0 = i, j
+          self.gridClicked[i][j] = 0
+          self.gridClickedCount -= 1
+    return [minScore, x0, y0]
 
 app = Application()
 app.mainloop()

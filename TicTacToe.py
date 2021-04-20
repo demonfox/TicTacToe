@@ -55,7 +55,7 @@ class Application(Frame):
     nodeSearchedFrame.pack(padx=10, pady=10, side=LEFT, fill=X, expand=True)
     self.nodeSearchedEntry = Entry(nodeSearchedFrame, bd=3)
     self.nodeSearchedEntry.pack(side=LEFT, fill=X, expand=True)
-    self.nodeSearchedEntry.insert(0, "123456")
+    self.nodeSearchedEntry.insert(0, "0")
     self.nodeSearchedEntry.configure(state=DISABLED)
 
   def drawBoard(self):
@@ -150,7 +150,8 @@ class Application(Frame):
     # Note: you cannot do: self.gridClicked = [[0] * 3]*3
     # for more reason, refer to: https://stackoverflow.com/questions/21036140/python-two-dimensional-array-changing-an-element
     self.gridClicked = [[0] * 3 for _ in range(3)]
-    self.gridClickedCount = 0    
+    self.gridClickedCount = 0
+    self.nodeCount = 0
     self.maxPlayerToMove = True
     self.humanPlayerToMove = True if self.firstMoveVar.get() == 1 else False
     self.canvas1.delete("all")
@@ -168,9 +169,9 @@ class Application(Frame):
     #bestScore = -math.inf if self.maxPlayerToMove else math.inf
     x0, y0 = -1, -1
     if self.maxPlayerToMove:
-      nextMove = self.findMaxMove(0)
+      nextMove = self.findMaxMove(0, -math.inf, math.inf)
     else:
-      nextMove = self.findMinMove(0)
+      nextMove = self.findMinMove(0, -math.inf, math.inf)
     x0 = nextMove[1]
     y0 = nextMove[2]
     self.gridClicked[x0][y0] = 1 if self.maxPlayerToMove else -1
@@ -181,6 +182,12 @@ class Application(Frame):
       self.drawCross(x0, y0)
     else:
       self.drawCircle(x0, y0)
+    
+    self.nodeSearchedEntry.configure(state=NORMAL)
+    self.nodeSearchedEntry.delete(0, END)
+    self.nodeSearchedEntry.insert(0, self.nodeCount)
+    self.nodeSearchedEntry.configure(state=DISABLED)
+
     self.maxPlayerToMove = not self.maxPlayerToMove
     self.humanPlayerToMove = True
     finalScore = self.isEndState()
@@ -188,11 +195,10 @@ class Application(Frame):
     if not self.gameInProgress:
       self.displayFinalMessage(finalScore)
 
-  def findMaxMove(self, depth):
+  def findMaxMove(self, depth, alpha, beta):
     score = self.isEndState()
     if score != -1: # -1 indicating it's a non-terminal state
       return [score, -1, -1]
-  
   
     maxScore = -math.inf
     x0, y0 = -1, -1
@@ -201,15 +207,19 @@ class Application(Frame):
         if (self.gridClicked[i][j]) == 0:
           self.gridClicked[i][j] = 1
           self.gridClickedCount += 1
-          nextMove = self.findMinMove(depth+1)
+          self.nodeCount += 1
+          nextMove = self.findMinMove(depth+1, alpha, beta)
           if (nextMove[0] > maxScore):
             maxScore = nextMove[0]
             x0, y0 = i, j
           self.gridClicked[i][j] = 0
           self.gridClickedCount -= 1
+          alpha = max(alpha, nextMove[0])
+          if (beta <= alpha): # meaning the minplayer had a better move earlier on, so no need to continue, we prune
+            return [maxScore, x0, y0]
     return [maxScore, x0, y0]
 
-  def findMinMove(self, depth):
+  def findMinMove(self, depth, alpha, beta):
     score = self.isEndState()
     if score != -1: # -1 indicating it's a non-terminal state
       return [score, -1, -1]
@@ -221,12 +231,16 @@ class Application(Frame):
         if (self.gridClicked[i][j] == 0):
           self.gridClicked[i][j] = -1
           self.gridClickedCount += 1
-          nextMove  = self.findMaxMove(depth+1)
+          self.nodeCount += 1
+          nextMove  = self.findMaxMove(depth+1, alpha, beta)
           if (nextMove[0] < minScore):
             minScore = nextMove[0]
             x0, y0 = i, j
           self.gridClicked[i][j] = 0
           self.gridClickedCount -= 1
+          beta = min(beta, nextMove[0])
+          if (beta <= alpha):
+            return [minScore, x0, y0]
     return [minScore, x0, y0]
 
 app = Application()
